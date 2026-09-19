@@ -7,6 +7,7 @@ import {
   simplifyGeometry,
   type BoundingBox,
   type Corridor,
+  geometryContainsPoint,
 } from '../geometry-utils';
 import { ValidationError } from '../errors';
 import type { GeoJsonGeometry } from '@/types/geojson';
@@ -148,7 +149,6 @@ describe('geometry-utils', () => {
       expect(bbox.maxY).toBe(6580050);
     });
   });
-
 });
 
 describe('simplifyGeometry', () => {
@@ -157,11 +157,18 @@ describe('simplifyGeometry', () => {
   // be collapsed by Douglas-Peucker with the default WGS84 tolerance.
   const polygonGeometry: GeoJsonGeometry = {
     type: 'Polygon',
-    coordinates: [[
-      [18.0, 59.3], [18.05, 59.3001], [18.1, 59.3],
-      [18.15, 59.3001], [18.2, 59.3], [18.2, 59.4],
-      [18.0, 59.4], [18.0, 59.3],
-    ]],
+    coordinates: [
+      [
+        [18.0, 59.3],
+        [18.05, 59.3001],
+        [18.1, 59.3],
+        [18.15, 59.3001],
+        [18.2, 59.3],
+        [18.2, 59.4],
+        [18.0, 59.4],
+        [18.0, 59.3],
+      ],
+    ],
   };
 
   const pointGeometry: GeoJsonGeometry = {
@@ -211,8 +218,8 @@ describe('simplifyGeometry', () => {
     const resultTight = simplifyGeometry(polygonGeometry, 'simplified', 0.0001);
     expect(resultLoose).toBeDefined();
     expect(resultTight).toBeDefined();
-    const looseCoordsLen = ((resultLoose!.coordinates as number[][][])[0]).length;
-    const tightCoordsLen = ((resultTight!.coordinates as number[][][])[0]).length;
+    const looseCoordsLen = (resultLoose!.coordinates as number[][][])[0].length;
+    const tightCoordsLen = (resultTight!.coordinates as number[][][])[0].length;
     // Looser tolerance = fewer coords than tighter tolerance
     expect(looseCoordsLen).toBeLessThanOrEqual(tightCoordsLen);
   });
@@ -221,8 +228,26 @@ describe('simplifyGeometry', () => {
     const multiPolygon: GeoJsonGeometry = {
       type: 'MultiPolygon',
       coordinates: [
-        [[[18.0, 59.3], [18.05, 59.3001], [18.1, 59.3], [18.2, 59.4], [18.0, 59.4], [18.0, 59.3]]],
-        [[[19.0, 59.3], [19.05, 59.3001], [19.1, 59.3], [19.2, 59.4], [19.0, 59.4], [19.0, 59.3]]],
+        [
+          [
+            [18.0, 59.3],
+            [18.05, 59.3001],
+            [18.1, 59.3],
+            [18.2, 59.4],
+            [18.0, 59.4],
+            [18.0, 59.3],
+          ],
+        ],
+        [
+          [
+            [19.0, 59.3],
+            [19.05, 59.3001],
+            [19.1, 59.3],
+            [19.2, 59.4],
+            [19.0, 59.4],
+            [19.0, 59.3],
+          ],
+        ],
       ],
     };
 
@@ -236,5 +261,77 @@ describe('simplifyGeometry', () => {
     const resultSimplified = simplifyGeometry(multiPolygon, 'simplified');
     expect(resultSimplified).toBeDefined();
     expect(resultSimplified!.type).toBe('MultiPolygon');
+  });
+
+  describe('geometryContainsPoint', () => {
+    const square: GeoJsonGeometry = {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [18.0, 59.3],
+          [18.1, 59.3],
+          [18.1, 59.4],
+          [18.0, 59.4],
+          [18.0, 59.3],
+        ],
+      ],
+    };
+    const squareWithHole: GeoJsonGeometry = {
+      type: 'Polygon',
+      coordinates: [
+        square.coordinates[0] as number[][],
+        [
+          [18.04, 59.34],
+          [18.06, 59.34],
+          [18.06, 59.36],
+          [18.04, 59.36],
+          [18.04, 59.34],
+        ],
+      ],
+    };
+
+    it('should be true for a point inside the outer ring', () => {
+      expect(geometryContainsPoint(square, [18.05, 59.35])).toBe(true);
+    });
+
+    it('should be false for a point outside the outer ring', () => {
+      expect(geometryContainsPoint(square, [18.2, 59.35])).toBe(false);
+    });
+
+    it('should be false for a point inside a hole', () => {
+      expect(geometryContainsPoint(squareWithHole, [18.05, 59.35])).toBe(false);
+      expect(geometryContainsPoint(squareWithHole, [18.02, 59.32])).toBe(true);
+    });
+
+    it('should check every polygon of a MultiPolygon', () => {
+      const far: number[][][] = [
+        [
+          [19.0, 60.0],
+          [19.1, 60.0],
+          [19.1, 60.1],
+          [19.0, 60.1],
+          [19.0, 60.0],
+        ],
+      ];
+      const multi: GeoJsonGeometry = { type: 'MultiPolygon', coordinates: [far, square.coordinates as number[][][]] };
+      expect(geometryContainsPoint(multi, [18.05, 59.35])).toBe(true);
+      expect(geometryContainsPoint(multi, [18.5, 59.5])).toBe(false);
+    });
+
+    it('should be false for geometries without an interior', () => {
+      expect(geometryContainsPoint({ type: 'Point', coordinates: [18.05, 59.35] }, [18.05, 59.35])).toBe(false);
+      expect(
+        geometryContainsPoint(
+          {
+            type: 'LineString',
+            coordinates: [
+              [18.0, 59.3],
+              [18.1, 59.4],
+            ],
+          },
+          [18.05, 59.35],
+        ),
+      ).toBe(false);
+    });
   });
 });

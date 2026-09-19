@@ -27,6 +27,8 @@ export const sguQueryTool = {
     'Query geological data at one or more points in Sweden. ' +
     'Returns area features (bedrock, soil, wells, aquifers, soil layers) and point measurements ' +
     '(radon, soil depth, groundwater vulnerability, landslide). ' +
+    'An area feature that contains a query point carries at_query_points (indexes into points) and is listed first; ' +
+    'the other area features are neighbours within radiusKm, not the unit at the point. ' +
     'One point = site assessment. Multiple points = corridor sampling (e.g. along a railway track). ' +
     'Use "all" for dataTypes to get everything, or specify which types you need.',
   inputSchema: sguQueryInputSchema,
@@ -46,10 +48,7 @@ export const sguQueryHandler = withErrorHandling(async (args: SguQueryInput) => 
   }
   for (const p of args.points) {
     if (!isValidWgs84Coordinate(p.latitude, p.longitude)) {
-      throw new ValidationError(
-        `Point (${p.latitude}, ${p.longitude}) is outside Sweden (55-69°N, 11-24°E)`,
-        'points',
-      );
+      throw new ValidationError(`Point (${p.latitude}, ${p.longitude}) is outside Sweden (55-69°N, 11-24°E)`, 'points');
     }
   }
 

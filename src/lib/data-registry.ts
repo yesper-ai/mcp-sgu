@@ -1,5 +1,6 @@
 import { createOgcClient } from '@/lib/ogc-client';
-import { simplifyGeometry, type BoundingBox, type Point } from '@/lib/geometry-utils';
+import { geometryContainsPoint, simplifyGeometry, type BoundingBox, type LonLat, type Point } from '@/lib/geometry-utils';
+import { sweref99ToWgs84 } from '@/lib/coordinates';
 import type { GeoJsonFeature, GeoJsonGeometry } from '@/types/geojson';
 import type { DataType, GeometryDetail } from '@/types/common-schemas';
 import {
@@ -61,9 +62,7 @@ const DATA_REGISTRY: Record<DataType, RegistryEntry> = {
     getClient: (bbox) => {
       // bbox is WGS84: minY=minLat, maxY=maxLat
       const centerLat = (bbox.minY + bbox.maxY) / 2;
-      return centerLat > NORTH_LATITUDE_THRESHOLD
-        ? getOgcClient('jordarter250k')
-        : getOgcClient('jordarter25k-100k');
+      return centerLat > NORTH_LATITUDE_THRESHOLD ? getOgcClient('jordarter250k') : getOgcClient('jordarter25k-100k');
     },
     collection: 'grundlager',
     transform: transformSoilFeature as unknown as RegistryTransform,
@@ -96,9 +95,21 @@ const DATA_REGISTRY: Record<DataType, RegistryEntry> = {
 // Query helpers
 // ============================================================================
 
+function queryPointIndexesInside(geometry: GeoJsonGeometry | undefined, queryPoints: LonLat[]): number[] {
+  if (!geometry) return [];
+  return queryPoints.flatMap((point, index) => (geometryContainsPoint(geometry, point) ? [index] : []));
+}
+
+function containingFeaturesFirst(features: Record<string, unknown>[]): Record<string, unknown>[] {
+  const containing = features.filter((feature) => feature.at_query_points !== undefined);
+  const nearby = features.filter((feature) => feature.at_query_points === undefined);
+  return [...containing, ...nearby];
+}
+
 async function queryOgcPerPoint(
   entry: OgcEntry,
   perPointBboxes: BoundingBox[],
+  sweref99Points: Point[],
   limit: number,
   geometryDetail: GeometryDetail,
 ): Promise<{ features: Record<string, unknown>[] }> {
@@ -109,6 +120,10 @@ async function queryOgcPerPoint(
       return client.getItemsWithCount<GeoJsonFeature>(entry.collection, { bbox, limit });
     }),
   );
+  const queryPoints: LonLat[] = sweref99Points.map((point) => {
+    const wgs84 = sweref99ToWgs84(point);
+    return [wgs84.longitude, wgs84.latitude];
+  });
 
   const seen = new Set<string>();
   const features: Record<string, unknown>[] = [];
@@ -118,13 +133,17 @@ async function queryOgcPerPoint(
       if (id && seen.has(id)) continue;
       if (id) seen.add(id);
       const transformed = entry.transform(f);
+      const at_query_points = queryPointIndexesInside(f.geometry, queryPoints);
+      if (at_query_points.length > 0) {
+        transformed.at_query_points = at_query_points;
+      }
       if (transformed.geometry) {
         transformed.geometry = simplifyGeometry(transformed.geometry as GeoJsonGeometry, geometryDetail);
       }
       features.push(transformed);
     }
   }
-  return { features };
+  return { features: containingFeaturesFirst(features) };
 }
 
 async function queryWms(entry: WmsEntry, sweref99Points: Point[]): Promise<unknown[]> {
@@ -150,7 +169,7 @@ export async function queryAll(
     requestedTypes.map(async (type) => {
       const entry = DATA_REGISTRY[type];
       if (entry.mode === 'ogc') {
-        return { type, data: await queryOgcPerPoint(entry, perPointBboxes, limit, geometryDetail) };
+        return { type, data: await queryOgcPerPoint(entry, perPointBboxes, sweref99Points, limit, geometryDetail) };
       } else {
         return { type, data: await queryWms(entry, sweref99Points) };
       }

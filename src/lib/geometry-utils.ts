@@ -81,6 +81,39 @@ export function corridorToBoundingBox(corridor: Corridor): BoundingBox {
   };
 }
 
+// Point-in-polygon (even-odd ray casting) on GeoJSON coordinates in [x, y] order
+
+export type LonLat = [number, number];
+
+function ringContains(ring: number[][], [x, y]: LonLat): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const crossesRay = yi > y !== yj > y;
+    if (crossesRay && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function polygonContains(rings: number[][][], point: LonLat): boolean {
+  const [outer, ...holes] = rings;
+  if (!outer || !ringContains(outer, point)) return false;
+  return !holes.some((hole) => ringContains(hole, point));
+}
+
+export function geometryContainsPoint(geometry: GeoJsonGeometry, point: LonLat): boolean {
+  if (geometry.type === 'Polygon') {
+    return polygonContains(geometry.coordinates as number[][][], point);
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return (geometry.coordinates as number[][][][]).some((rings) => polygonContains(rings, point));
+  }
+  return false;
+}
+
 // Douglas-Peucker simplification helpers
 
 // ~100m at Swedish latitudes in WGS84 degrees (1 degree lat ≈ 111km, 0.001° ≈ 111m)
