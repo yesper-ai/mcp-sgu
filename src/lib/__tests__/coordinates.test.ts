@@ -6,6 +6,7 @@ import {
   wgs84CoordinatesToSweref99,
   CRS_SWEREF99TM,
   CRS_WGS84,
+  sweref99ToWgs84,
 } from '../coordinates';
 import { ValidationError } from '../errors';
 
@@ -140,10 +141,7 @@ describe('coordinates', () => {
         maxLat: 59.33,
         maxLon: 18.07,
       });
-      const largeBbox = wgs84BboxToSweref99(
-        { minLat: 59.33, minLon: 18.07, maxLat: 59.33, maxLon: 18.07 },
-        1000,
-      );
+      const largeBbox = wgs84BboxToSweref99({ minLat: 59.33, minLon: 18.07, maxLat: 59.33, maxLon: 18.07 }, 1000);
 
       // Larger buffer should produce a larger bbox
       expect(largeBbox.maxX - largeBbox.minX).toBeGreaterThan(defaultBbox.maxX - defaultBbox.minX);
@@ -185,6 +183,15 @@ describe('coordinates', () => {
           { latitude: 48.86, longitude: 2.35 }, // Paris
         ]),
       ).toThrow(ValidationError);
+    });
+  });
+
+  describe('sweref99ToWgs84', () => {
+    it('should invert wgs84ToSweref99 within a millimetre', () => {
+      const stockholm = { latitude: 59.33, longitude: 18.07 };
+      const back = sweref99ToWgs84(wgs84ToSweref99(stockholm));
+      expect(back.latitude).toBeCloseTo(stockholm.latitude, 8);
+      expect(back.longitude).toBeCloseTo(stockholm.longitude, 8);
     });
   });
 });

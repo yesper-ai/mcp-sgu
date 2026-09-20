@@ -83,6 +83,11 @@ export function wgs84CoordinatesToSweref99(coords: Wgs84Point[]): Sweref99Point[
   return coords.map((coord) => wgs84ToSweref99(coord));
 }
 
+export function sweref99ToWgs84(point: Sweref99Point): Wgs84Point {
+  const [longitude, latitude] = proj4('EPSG:3006', 'EPSG:4326', [point.x, point.y]);
+  return { latitude, longitude };
+}
+
 export function sweref99BboxToWgs84(bbox: BoundingBox): Wgs84Bbox {
   const [minLon, minLat] = proj4('EPSG:3006', 'EPSG:4326', [bbox.minX, bbox.minY]);
   const [maxLon, maxLat] = proj4('EPSG:3006', 'EPSG:4326', [bbox.maxX, bbox.maxY]);

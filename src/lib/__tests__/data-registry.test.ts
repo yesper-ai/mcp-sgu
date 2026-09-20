@@ -58,7 +58,17 @@ const mockBedrockFeature = {
 const mockSoilFeature = {
   type: 'Feature',
   id: 'soil-1',
-  geometry: { type: 'Polygon', coordinates: [[[18.0, 59.3], [18.01, 59.3], [18.01, 59.31], [18.0, 59.3]]] },
+  geometry: {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [18.0, 59.3],
+        [18.01, 59.3],
+        [18.01, 59.31],
+        [18.0, 59.3],
+      ],
+    ],
+  },
   properties: { jg2_tx: 'Morän', jg2: 'Mo', geom_area: 5000 },
 };
 
@@ -67,6 +77,25 @@ const southernBbox: BoundingBox = { minX: 17.95, minY: 59.25, maxX: 18.05, maxY:
 const northernBbox: BoundingBox = { minX: 17.95, minY: 65.4, maxX: 18.05, maxY: 65.6 };
 
 const stockholmSweref99: Point = { x: 674553, y: 6580992 };
+
+// Stockholm in WGS84 is roughly (59.33, 18.07); this polygon contains it, mockSoilFeature does not
+const mockSoilFeatureAtStockholm = {
+  type: 'Feature',
+  id: 'soil-at-point',
+  geometry: {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [18.05, 59.32],
+        [18.09, 59.32],
+        [18.09, 59.34],
+        [18.05, 59.34],
+        [18.05, 59.32],
+      ],
+    ],
+  },
+  properties: { jg2_tx: 'Postglacial sand', jg2: '31', kartering: 'uppsalaasen', geom_area: 438620 },
+};
 
 // ============================================================================
 // Helpers
@@ -141,6 +170,18 @@ describe('queryAll', () => {
       );
     });
 
+    it('marks the area features that contain a query point and lists them first', async () => {
+      const mockClient = getMockOgcClient([mockSoilFeature, mockSoilFeatureAtStockholm]);
+      vi.mocked(createOgcClient).mockReturnValue(mockClient as ReturnType<typeof createOgcClient>);
+
+      const { results } = await queryAll(['soil_type'], [southernBbox], [stockholmSweref99], 50, 'none');
+
+      const features = results.soil_type as Record<string, unknown>[];
+      expect(features.map((feature) => feature.id)).toEqual(['soil-at-point', 'soil-1']);
+      expect(features[0].at_query_points).toEqual([0]);
+      expect(features[1]).not.toHaveProperty('at_query_points');
+    });
+
     it('applies geometry simplification to OGC features', async () => {
       const mockClient = getMockOgcClient([mockBedrockFeature]);
       vi.mocked(createOgcClient).mockReturnValue(mockClient as ReturnType<typeof createOgcClient>);
@@ -202,13 +243,7 @@ describe('queryAll', () => {
     it('dispatches groundwater_vulnerability to sguClient', async () => {
       vi.mocked(sguClient.getGroundwaterVulnerabilityAt).mockResolvedValue({ vulnerability_class: 'low' });
 
-      const { results } = await queryAll(
-        ['groundwater_vulnerability'],
-        [southernBbox],
-        [stockholmSweref99],
-        50,
-        'simplified',
-      );
+      const { results } = await queryAll(['groundwater_vulnerability'], [southernBbox], [stockholmSweref99], 50, 'simplified');
 
       expect(results.groundwater_vulnerability).toHaveLength(1);
     });
@@ -225,13 +260,7 @@ describe('queryAll', () => {
       const point2: Point = { x: 675000, y: 6581000 };
       vi.mocked(sguClient.getRadonRiskAt).mockResolvedValue({ radiation_value: 3.0, risk_level: 'moderate' });
 
-      const { results } = await queryAll(
-        ['radon_risk'],
-        [southernBbox],
-        [stockholmSweref99, point2],
-        50,
-        'simplified',
-      );
+      const { results } = await queryAll(['radon_risk'], [southernBbox], [stockholmSweref99, point2], 50, 'simplified');
 
       expect(sguClient.getRadonRiskAt).toHaveBeenCalledTimes(2);
       expect(sguClient.getRadonRiskAt).toHaveBeenCalledWith(stockholmSweref99);

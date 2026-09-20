@@ -15,18 +15,12 @@ const stockholmSweref99: Point = wgs84ToSweref99({ latitude: 59.33, longitude: 1
 
 // Trollhättan/Lilla Edet area — known landslide zone
 const landslideSweref99: Point = wgs84ToSweref99({ latitude: 57.98, longitude: 12.08 });
-const landslideBbox: BoundingBox = { minX: 12.06, minY: 57.96, maxX: 12.10, maxY: 58.00 };
+const landslideBbox: BoundingBox = { minX: 12.06, minY: 57.96, maxX: 12.1, maxY: 58.0 };
 
 describe('data-registry integration (real API)', { timeout: 60000 }, () => {
   describe('single point Stockholm — mixed OGC + WMS', () => {
     it('returns bedrock features with rock_type', async () => {
-      const { results, errors } = await queryAll(
-        ['bedrock'],
-        [stockholmBbox],
-        [stockholmSweref99],
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['bedrock'], [stockholmBbox], [stockholmSweref99], 5, 'simplified');
 
       expect(errors.bedrock).toBeUndefined();
       const features = results.bedrock as Record<string, unknown>[];
@@ -36,13 +30,7 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
     });
 
     it('returns soil_type features', async () => {
-      const { results, errors } = await queryAll(
-        ['soil_type'],
-        [stockholmBbox],
-        [stockholmSweref99],
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['soil_type'], [stockholmBbox], [stockholmSweref99], 5, 'simplified');
 
       expect(errors.soil_type).toBeUndefined();
       const features = results.soil_type as Record<string, unknown>[];
@@ -51,13 +39,7 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
     });
 
     it('returns radon_risk data with valid radiation_value', async () => {
-      const { results, errors } = await queryAll(
-        ['radon_risk'],
-        [stockholmBbox],
-        [stockholmSweref99],
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['radon_risk'], [stockholmBbox], [stockholmSweref99], 5, 'simplified');
 
       expect(errors.radon_risk).toBeUndefined();
       const data = results.radon_risk as Record<string, unknown>[];
@@ -70,13 +52,7 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
     });
 
     it('returns soil_depth data', async () => {
-      const { results, errors } = await queryAll(
-        ['soil_depth'],
-        [stockholmBbox],
-        [stockholmSweref99],
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['soil_depth'], [stockholmBbox], [stockholmSweref99], 5, 'simplified');
 
       expect(errors.soil_depth).toBeUndefined();
       const data = results.soil_depth as Record<string, unknown>[];
@@ -106,13 +82,7 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
 
   describe('landslide with 2km buffer', () => {
     it('returns landslide data at known landslide zone (Trollhättan/Lilla Edet)', async () => {
-      const { results, errors } = await queryAll(
-        ['landslide'],
-        [landslideBbox],
-        [landslideSweref99],
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['landslide'], [landslideBbox], [landslideSweref99], 5, 'simplified');
 
       expect(errors.landslide).toBeUndefined();
       const data = results.landslide as Record<string, unknown>[];
@@ -140,13 +110,7 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
     });
 
     it('wells returns features with well_id', async () => {
-      const { results, errors } = await queryAll(
-        ['wells'],
-        [stockholmBbox],
-        [stockholmSweref99],
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['wells'], [stockholmBbox], [stockholmSweref99], 5, 'simplified');
 
       expect(errors.wells).toBeUndefined();
       const features = results.wells as Record<string, unknown>[];
@@ -155,13 +119,7 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
     });
 
     it('soil_layers returns features with layer_number', async () => {
-      const { results, errors } = await queryAll(
-        ['soil_layers'],
-        [stockholmBbox],
-        [stockholmSweref99],
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['soil_layers'], [stockholmBbox], [stockholmSweref99], 5, 'simplified');
 
       expect(errors.soil_layers).toBeUndefined();
       const features = results.soil_layers as Record<string, unknown>[];
@@ -174,18 +132,12 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
     it('radon values from multiple points along a corridor', async () => {
       // 3 points spread across Stockholm
       const points: Point[] = [
-        wgs84ToSweref99({ latitude: 59.30, longitude: 18.05 }),
+        wgs84ToSweref99({ latitude: 59.3, longitude: 18.05 }),
         wgs84ToSweref99({ latitude: 59.33, longitude: 18.07 }),
         wgs84ToSweref99({ latitude: 59.36, longitude: 18.09 }),
       ];
 
-      const { results, errors } = await queryAll(
-        ['radon_risk'],
-        [stockholmBbox],
-        points,
-        5,
-        'simplified',
-      );
+      const { results, errors } = await queryAll(['radon_risk'], [stockholmBbox], points, 5, 'simplified');
 
       expect(errors.radon_risk).toBeUndefined();
       const data = results.radon_risk as Record<string, unknown>[];
@@ -251,6 +203,24 @@ describe('data-registry integration (real API)', { timeout: 60000 }, () => {
           }
         }
       }
+    });
+  });
+
+  describe('point containment — Ångströmlaboratoriet, Uppsala', () => {
+    // Reference: SGU jordartskartan 25K, kartering uppsalaasen, verified 2026-08-23 (Postglacial sand at the point)
+    const angstromWgs84 = { latitude: 59.8397, longitude: 17.6469 };
+    const angstromSweref99: Point = wgs84ToSweref99(angstromWgs84);
+    const angstromBbox: BoundingBox = { minX: 17.643, minY: 59.838, maxX: 17.651, maxY: 59.842 };
+
+    it('marks exactly the soil unit that contains the point and lists it first', async () => {
+      const { results, errors } = await queryAll(['soil_type'], [angstromBbox], [angstromSweref99], 50, 'none');
+
+      expect(errors.soil_type).toBeUndefined();
+      const features = results.soil_type as Record<string, unknown>[];
+      const containing = features.filter((feature) => feature.at_query_points !== undefined);
+      expect(containing).toHaveLength(1);
+      expect(features[0]).toBe(containing[0]);
+      expect(containing[0]).toMatchObject({ soil_type: 'Postglacial sand', mapping_id: 'uppsalaasen', at_query_points: [0] });
     });
   });
 });
